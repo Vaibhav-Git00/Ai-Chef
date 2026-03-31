@@ -50,17 +50,21 @@ const Upload = () => {
       console.log("📤 Step 1: Uploading image...");
       const uploadRes = await axios.post(
         `${API_BASE}/image/upload`,
-        formData
+        formData,
+        { timeout: 60000 } // 60 second timeout
       );
 
       const imageUrl = uploadRes.data.imageUrl;
       console.log("✅ Image uploaded:", imageUrl);
 
-      // Detect ingredients and dishes
-      console.log("🧠 Step 2: Detecting ingredients and generating dishes...");
+      // Detect ingredients and dishes - THIS CAN TAKE UP TO 3 MINUTES
+      console.log("🧠 Step 2: Detecting ingredients and generating dishes (may take 1-2 minutes)...");
+      console.log("⏳ Processing your image with AI... Please wait. This may take 1-2 minutes.");
+      
       const aiRes = await axios.post(
         `${API_BASE}/smart/from-image`,
-        { imageUrl }
+        { imageUrl },
+        { timeout: 180000 } // 3 minute timeout for AI processing (OpenRouter can be slow)
       );
 
       console.log("✅ Detection successful:", aiRes.data);
@@ -71,7 +75,8 @@ const Upload = () => {
       
       const nutriRes = await axios.post(
         `${API_BASE}/nutrition/get-nutrition`,
-        { dish: firstDish }
+        { dish: firstDish },
+        { timeout: 60000 } // 60 second timeout
       );
 
       console.log("✅ Nutrition info retrieved");
@@ -82,14 +87,17 @@ const Upload = () => {
         try {
           console.log("💾 Saving to history...");
           await axios.post(
-            "http://localhost:8000/api/history/save",
+            `${API_BASE}/history/save`,
             {
               imageUrl,
               ingredients: aiRes.data.detectedIngredients,
               dish: firstDish,
               nutrition: nutriRes.data.nutrition,
             },
-            { headers: { Authorization: `Bearer ${token}` } }
+            { 
+              headers: { Authorization: `Bearer ${token}` },
+              timeout: 30000
+            }
           );
           console.log("✅ Saved to history");
         } catch (historyErr) {
@@ -112,12 +120,17 @@ const Upload = () => {
       // Extract meaningful error message
       let errorMessage = "Error detecting dish. Please try again.";
       
-      if (err.response?.data?.error) {
+      if (err.code === 'ECONNABORTED' || err.message?.includes('timeout')) {
+        errorMessage = "⏱️ Request timed out - This usually means the AI took too long to process. Please try again with a clearer image or a different time. If the problem persists, try a simpler dish (like a single vegetable).";
+      } else if (err.response?.data?.error) {
         errorMessage = err.response.data.error;
         
-        // Add details if available
+        // Add details if available (handle if it's an object)
         if (err.response.data.details) {
-          errorMessage += ` (${err.response.data.details})`;
+          const details = typeof err.response.data.details === 'string' 
+            ? err.response.data.details 
+            : JSON.stringify(err.response.data.details);
+          errorMessage += ` - ${details}`;
         }
 
         // Add step information if available
@@ -125,11 +138,16 @@ const Upload = () => {
           errorMessage = `Step ${err.response.data.step}: ${errorMessage}`;
         }
       } else if (err.message) {
-        errorMessage = err.message;
+        if (err.message.includes('timeout')) {
+          errorMessage = "⏱️ Request timed out after waiting several minutes. The AI service is experiencing delays. Please try again.";
+        } else {
+          errorMessage = err.message;
+        }
       }
 
       setError(errorMessage);
       showError(errorMessage);
+      console.error("Full error details:", err.response?.data || err.message);
     } finally {
       setLoading(false);
     }

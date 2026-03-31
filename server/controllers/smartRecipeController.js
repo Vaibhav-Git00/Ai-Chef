@@ -18,7 +18,7 @@ exports.getDishFromImage = async (req, res) => {
       detectRes = await axios.post(
         "http://localhost:8000/api/ai/detect-ingredients",
         { imageUrl },
-        { timeout: 60000 } // 60 second timeout for AI processing
+        { timeout: 180000 } // 3 minute timeout for AI processing
       );
     } catch (stepError) {
       console.error("❌ STEP 1 FAILED - Ingredient detection error:");
@@ -78,7 +78,7 @@ Return only dish names in list format.`
             Authorization: `Bearer ${process.env.OPENROUTER_KEY}`,
             "Content-Type": "application/json"
           },
-          timeout: 60000 // 60 second timeout
+          timeout: 180000 // 3 minute timeout
         }
       );
     } catch (stepError) {
@@ -90,10 +90,17 @@ Return only dish names in list format.`
       }
 
       let userMessage = "Failed to generate dish suggestions";
+      let details = "Please try uploading a clearer image.";
+      
       if (stepError.response?.status === 401) {
-        userMessage = "OpenRouter API authentication failed - check your API key";
+        userMessage = "OpenRouter API authentication failed";
+        details = "Invalid or expired API key. Please check your OPENROUTER_KEY in .env file.";
       } else if (stepError.response?.status === 429) {
-        userMessage = "OpenRouter API rate limit exceeded - please try again later";
+        userMessage = "OpenRouter API rate limit exceeded";
+        details = "Please try again in a few moments.";
+      } else if (stepError.response?.status === 400) {
+        userMessage = "Invalid request format";
+        details = stepError.response?.data?.error?.message || "Please try with a different image.";
       }
 
       return res.status(500).json({

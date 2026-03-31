@@ -44,7 +44,8 @@ exports.detectIngredients = async (req, res) => {
         headers: {
           "Authorization": `Bearer ${process.env.OPENROUTER_KEY}`,
           "Content-Type": "application/json"
-        }
+        },
+        timeout: 180000 // 3 minute timeout for OpenRouter API (can be slow)
       }
     );
 

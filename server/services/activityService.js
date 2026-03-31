@@ -125,7 +125,7 @@ const activityService = {
         recipesGenerated: user.recipesGenerated || 0,
         timeSaved: user.timeSaved || 0,
         skillPoints: user.skillPoints || 0,
-        weeklyProgress,
+        weeklyProgress: weekProgress,
         cookedRecipesCount: user.cookedRecipes?.length || 0,
         lastCookDate: user.lastCookDate || null
       };
